@@ -6,7 +6,8 @@ import { connect } from 'cloudflare:sockets';
 // [Windows] Press "Win + R", input cmd and run:  Powershell -NoExit -Command "[guid]::NewGuid()"
 let userID = 'd342d11e-d424-4583-b36e-524ab1f0afa4';
 
-let proxyIP = 'cdn.xn--b6gac.eu.org';
+const proxyIPs = ['cdn-all.xn--b6gac.eu.org', 'cdn.xn--b6gac.eu.org', 'cdn-b100.xn--b6gac.eu.org', 'edgetunnel.anycast.eu.org', 'cdn.anycast.eu.org'];
+let proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
 
 let dohURL = 'https://sky.rethinkdns.com/1:-Pf_____9_8A_AMAIgE8kMABVDDmKOHTAKg='; // https://cloudflare-dns.com/dns-query or https://dns.google/dns-query
 
@@ -208,7 +209,7 @@ async function getApiResponse() {
 async function checkUuidInApiResponse(targetUuid) {
 	// Check if any of the environment variables are empty
 	if (!nodeId || !apiToken || !apiHost) {
-		return true;
+		return false;
 	}
 
 	try {
@@ -362,7 +363,10 @@ function processVlessHeader(
 	const version = new Uint8Array(vlessBuffer.slice(0, 1));
 	let isValidUser = false;
 	let isUDP = false;
-	if (stringify(new Uint8Array(vlessBuffer.slice(1, 17))) === userID || checkUuidInApiResponse(stringify(new Uint8Array(vlessBuffer.slice(1, 17))))) {
+	const slicedBuffer = new Uint8Array(vlessBuffer.slice(1, 17));
+	const slicedBufferString = stringify(slicedBuffer);
+	const hasValidNodeId = nodeId.length > 0;
+	if (slicedBufferString === userID || (checkUuidInApiResponse(slicedBufferString) && hasValidNodeId)) {
 		isValidUser = true;
 	}
 	if (!isValidUser) {
@@ -674,11 +678,17 @@ async function handleUDPOutBound(webSocket, vlessResponseHeader, log) {
  */
 function getVLESSConfig(userID, hostName) {
 	const vlessMain = `vless://${userID}@${hostName}:443?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D2048#${hostName}`
+	const vlessSec = `vless://${userID}@${proxyIP}:443?encryption=none&security=tls&sni=${hostName}&fp=randomized&type=ws&host=${hostName}&path=%2F%3Fed%3D2048#${hostName}`
 	return `
 ################################################################
-v2ray
+v2ray default ip
 ---------------------------------------------------------------
 ${vlessMain}
+---------------------------------------------------------------
+################################################################
+v2ray with best ip
+---------------------------------------------------------------
+${vlessSec}
 ---------------------------------------------------------------
 ################################################################
 clash-meta
